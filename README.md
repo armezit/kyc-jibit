@@ -50,15 +50,9 @@ Currently, the following methods are implemented by this package:
 composer test
 ```
 
-## Support
+## Contribute
 
-If you are having general issues with Omnipay, we suggest posting on
-[Stack Overflow](http://stackoverflow.com/). Be sure to add the
-[omnipay tag](http://stackoverflow.com/questions/tagged/omnipay) so it can be easily found.
-
-If you want to keep up to date with release anouncements, discuss ideas for the project,
-or ask more detailed questions, there is also a [mailing list](https://groups.google.com/forum/#!forum/omnipay) which
-you can subscribe to.
+Pull requests are welcome.
 
 If you believe you have found a bug, please report it using the [GitHub issue tracker](https://github.com/armezit/kyc-jibit/issues),
 or better yet, fork the library and submit a pull request.
