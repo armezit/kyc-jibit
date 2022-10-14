@@ -70,10 +70,11 @@ trait ParametersTrait
      * This method is called internally by gateways to avoid wasting time with an API call
      * when the request is clearly invalid.
      *
-     * @param string ... a variable length list of required parameters
+     * @param array|string ...$args a variable length list of required parameters
+     * @return void
      * @throws InvalidRequestException
      */
-    public function validate(...$args)
+    public function validate(...$args): void
     {
         foreach ($args as $key) {
             $value = $this->parameters->get($key);

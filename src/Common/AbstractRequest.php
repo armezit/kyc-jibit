@@ -10,8 +10,9 @@ use Armezit\Kyc\Jibit\Exception\InvalidResponseException;
 use Armezit\Kyc\Jibit\Exception\RuntimeException;
 use Exception;
 use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestInterface as PsrRequestInterface;
 use Symfony\Component\HttpFoundation\ParameterBag;
-use Symfony\Component\HttpFoundation\Request as HttpRequest;
+use GuzzleHttp\Psr7\Request;
 
 abstract class AbstractRequest implements RequestInterface
 {
@@ -36,7 +37,7 @@ abstract class AbstractRequest implements RequestInterface
     /**
      * The HTTP request object.
      *
-     * @var \Symfony\Component\HttpFoundation\Request
+     * @var PsrRequestInterface
      */
     protected $httpRequest;
 
@@ -67,10 +68,10 @@ abstract class AbstractRequest implements RequestInterface
     /**
      * Create a new Request
      *
-     * @param ClientInterface $httpClient  A HTTP client to make API calls with
-     * @param HttpRequest     $httpRequest A Symfony HTTP request object
+     * @param ClientInterface $httpClient  A (psr-18 compatible) HTTP client to make API calls with
+     * @param PsrRequestInterface $httpRequest A (psr-7 compatible) HTTP request object
      */
-    public function __construct(ClientInterface $httpClient, HttpRequest $httpRequest)
+    public function __construct(ClientInterface $httpClient, PsrRequestInterface $httpRequest)
     {
         $this->httpClient = $httpClient;
         $this->httpRequest = $httpRequest;
@@ -274,7 +275,7 @@ abstract class AbstractRequest implements RequestInterface
         $cache = $this->getCache();
 
         try {
-            $httpResponse = $this->httpClient->request(
+            $this->httpRequest = new Request(
                 'POST',
                 $this->getEndpoint() . '/v1/tokens/refresh',
                 [
@@ -284,6 +285,8 @@ abstract class AbstractRequest implements RequestInterface
                     ],
                 ],
             );
+
+            $httpResponse = $this->httpClient->sendRequest($this->httpRequest);
             $json = $httpResponse->getBody()->getContents();
             $result = !empty($json) ? json_decode($json, true) : [];
 
@@ -314,16 +317,17 @@ abstract class AbstractRequest implements RequestInterface
     private function generateNewToken(): string
     {
         try {
-            $httpResponse = $this->httpClient->request(
+            $this->httpRequest = new Request(
                 'POST',
                 $this->getEndpoint() . '/v1/tokens/generate',
                 [
                     'json' => [
                         'apiKey' => $this->getParameter('apiKey'),
                         'secretKey' => $this->getParameter('secretKey'),
-                    ]
+                    ],
                 ],
             );
+            $httpResponse = $this->httpClient->sendRequest($this->httpRequest);
             $json = $httpResponse->getBody()->getContents();
             $result = !empty($json) ? json_decode($json, true) : [];
 
@@ -373,11 +377,13 @@ abstract class AbstractRequest implements RequestInterface
         }
 
         try {
-            $httpResponse = $this->httpClient->request(
+            $this->httpRequest = new Request(
                 $this->getHttpMethod(),
                 $this->createUri($this->getEndpoint()),
                 $requestOptions,
             );
+
+            $httpResponse = $this->httpClient->sendRequest($this->httpRequest);
             $json = $httpResponse->getBody()->getContents();
             $result = !empty($json) ? json_decode($json, true) : [];
             $result['httpStatus'] = $httpResponse->getStatusCode();

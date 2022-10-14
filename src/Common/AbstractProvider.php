@@ -2,8 +2,8 @@
 
 namespace Armezit\Kyc\Jibit\Common;
 
-use GuzzleHttp\Client;
 use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestInterface as PsrRequestInterface;
 use Symfony\Component\HttpFoundation\ParameterBag;
 use Symfony\Component\HttpFoundation\Request as HttpRequest;
 
@@ -20,7 +20,7 @@ abstract class AbstractProvider implements ProviderInterface
     protected $httpClient;
 
     /**
-     * @var \Symfony\Component\HttpFoundation\Request
+     * @var PsrRequestInterface
      */
     protected $httpRequest;
 
@@ -28,9 +28,9 @@ abstract class AbstractProvider implements ProviderInterface
      * Create a new gateway instance
      *
      * @param ClientInterface $httpClient A HTTP client to make API calls with
-     * @param HttpRequest $httpRequest A Symfony HTTP request object
+     * @param PsrRequestInterface $httpRequest A HTTP request object
      */
-    public function __construct(ClientInterface $httpClient = null, HttpRequest $httpRequest = null)
+    public function __construct(ClientInterface $httpClient = null, PsrRequestInterface $httpRequest = null)
     {
         $this->httpClient = $httpClient ?: $this->getDefaultHttpClient();
         $this->httpRequest = $httpRequest ?: $this->getDefaultHttpRequest();
@@ -97,6 +97,7 @@ abstract class AbstractProvider implements ProviderInterface
      */
     protected function createRequest($class, array $parameters)
     {
+        /** @var RequestInterface $obj */
         $obj = new $class($this->httpClient, $this->httpRequest);
 
         return $obj->initialize(array_replace($this->getParameters(), $parameters));
@@ -109,13 +110,13 @@ abstract class AbstractProvider implements ProviderInterface
      */
     protected function getDefaultHttpClient()
     {
-        return new Client();
+        return new \GuzzleHttp\Client();
     }
 
     /**
      * Get the global default HTTP request.
      *
-     * @return HttpRequest
+     * @return \Symfony\Component\HttpFoundation\Request
      */
     protected function getDefaultHttpRequest()
     {

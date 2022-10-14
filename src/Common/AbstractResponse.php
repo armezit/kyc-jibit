@@ -48,10 +48,12 @@ abstract class AbstractResponse implements ResponseInterface
 
     /**
      * Is the response successful?
+     * 
+     * @return bool
      */
     public function isSuccessful()
     {
-        return $this->getCode() === 200;
+        return (int)$this->getCode() === 200;
     }
 
     /**

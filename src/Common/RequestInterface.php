@@ -7,8 +7,9 @@ interface RequestInterface extends MessageInterface
     /**
      * Initialize request with parameters
      * @param array $parameters The parameters to send
+     * @return static
      */
-    public function initialize(array $parameters = array());
+    public function initialize(array $parameters = array()): static;
 
     /**
      * Get all request parameters

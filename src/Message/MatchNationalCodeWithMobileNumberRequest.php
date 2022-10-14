@@ -3,7 +3,6 @@
 namespace Armezit\Kyc\Jibit\Message;
 
 use Armezit\Kyc\Jibit\Common\AbstractRequest;
-use JetBrains\PhpStorm\Pure;
 
 class MatchNationalCodeWithMobileNumberRequest extends AbstractRequest
 {
@@ -46,7 +45,7 @@ class MatchNationalCodeWithMobileNumberRequest extends AbstractRequest
      * @param array $data
      * @return MatchNationalCodeWithMobileNumberResponse
      */
-    #[Pure] protected function createResponse(array $data): MatchNationalCodeWithMobileNumberResponse
+    protected function createResponse(array $data): MatchNationalCodeWithMobileNumberResponse
     {
         return new MatchNationalCodeWithMobileNumberResponse($this, $data);
     }
