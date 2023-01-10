@@ -2,15 +2,18 @@
 
 namespace Armezit\Kyc\Jibit\Common;
 
+/**
+ * Helper
+ */
 class Helper
 {
     /**
      * Convert a string to camelCase. Strings already in camelCase will not be harmed.
      *
-     * @param string $str The input string
+     * @param string $str The input string.
      * @return string camelCased output string
      */
-    public static function camelCase($str)
+    public static function camelCase(string $str): string
     {
         $str = self::convertToLowercase($str);
         return preg_replace_callback(
@@ -25,10 +28,10 @@ class Helper
     /**
      * Convert strings with underscores to be all lowercase before camelCase is preformed.
      *
-     * @param string $str The input string
+     * @param string $str The input string.
      * @return string The output string
      */
-    protected static function convertToLowercase($str)
+    protected static function convertToLowercase(string $str): string
     {
         $explodedStr = explode('_', $str);
         $lowercasedStr = [];
@@ -49,11 +52,11 @@ class Helper
      * Parameters are automatically converted to camelCase. Any parameters which do
      * not match a setter on the target object are ignored.
      *
-     * @param mixed $target The object to set parameters on
-     * @param array $parameters An array of parameters to set
+     * @param mixed      $target     The object to set parameters on.
+     * @param array|null $parameters An array of parameters to set.
      * @return void
      */
-    public static function initialize($target, array $parameters = null): void
+    public static function initialize(mixed $target, array $parameters = null): void
     {
         if ($parameters) {
             foreach ($parameters as $key => $value) {
@@ -64,5 +67,4 @@ class Helper
             }
         }
     }
-
 }

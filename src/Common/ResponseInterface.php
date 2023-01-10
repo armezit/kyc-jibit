@@ -19,11 +19,11 @@ interface ResponseInterface extends MessageInterface
     public function isSuccessful();
 
     /**
-     * Response Message
+     * Error messages
      *
-     * @return null|string A response message from the payment gateway
+     * @return array
      */
-    public function getMessage();
+    public function getErrors();
 
     /**
      * Response code

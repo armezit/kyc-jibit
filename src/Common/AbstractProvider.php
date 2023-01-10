@@ -2,11 +2,17 @@
 
 namespace Armezit\Kyc\Jibit\Common;
 
+use Http\Discovery\HttpClientDiscovery;
+use Http\Discovery\MessageFactoryDiscovery;
+use Http\Message\RequestFactory;
+use Psr\Cache\CacheItemPoolInterface;
 use Psr\Http\Client\ClientInterface;
-use Psr\Http\Message\RequestInterface as PsrRequestInterface;
+use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\HttpFoundation\ParameterBag;
-use Symfony\Component\HttpFoundation\Request as HttpRequest;
 
+/**
+ * AbstractProvider
+ */
 abstract class AbstractProvider implements ProviderInterface
 {
     use ParametersTrait {
@@ -15,25 +21,29 @@ abstract class AbstractProvider implements ProviderInterface
     }
 
     /**
-     * @var ClientInterface
-     */
-    protected $httpClient;
-
-    /**
-     * @var PsrRequestInterface
-     */
-    protected $httpRequest;
-
-    /**
      * Create a new gateway instance
      *
-     * @param ClientInterface $httpClient A HTTP client to make API calls with
-     * @param PsrRequestInterface $httpRequest A HTTP request object
+     * @param ClientInterface|null        $httpClient     HTTP client to make API calls.
+     * @param RequestFactory|null         $requestFactory HTTP request factory.
+     * @param CacheItemPoolInterface|null $cache
      */
-    public function __construct(ClientInterface $httpClient = null, PsrRequestInterface $httpRequest = null)
-    {
-        $this->httpClient = $httpClient ?: $this->getDefaultHttpClient();
-        $this->httpRequest = $httpRequest ?: $this->getDefaultHttpRequest();
+    public function __construct(
+        protected ?ClientInterface $httpClient = null,
+        protected ?RequestFactory $requestFactory = null,
+        protected ?CacheItemPoolInterface $cache = null,
+    ) {
+        if ($this->httpClient === null) {
+            $this->httpClient = HttpClientDiscovery::find();
+        }
+
+        if ($this->requestFactory === null) {
+            $this->requestFactory = MessageFactoryDiscovery::find();
+        }
+
+        if ($this->cache === null) {
+            $this->cache = new FilesystemAdapter(namespace: static::getName(), directory: __DIR__ . '/cache/');
+        }
+
         $this->initialize();
     }
 
@@ -43,9 +53,9 @@ abstract class AbstractProvider implements ProviderInterface
      * @param array $parameters
      * @return $this
      */
-    public function initialize(array $parameters = array())
+    public function initialize(array $parameters = []): static
     {
-        $this->parameters = new ParameterBag;
+        $this->parameters = new ParameterBag();
 
         // set default parameters
         foreach ($this->getDefaultParameters() as $key => $value) {
@@ -64,7 +74,7 @@ abstract class AbstractProvider implements ProviderInterface
     /**
      * @return array
      */
-    public function getDefaultParameters()
+    public function getDefaultParameters(): array
     {
         return [];
     }
@@ -73,17 +83,17 @@ abstract class AbstractProvider implements ProviderInterface
      * @param string $key
      * @return mixed
      */
-    public function getParameter($key)
+    public function getParameter(string $key): mixed
     {
         return $this->traitGetParameter($key);
     }
 
     /**
      * @param string $key
-     * @param mixed $value
+     * @param mixed  $value
      * @return $this
      */
-    public function setParameter($key, $value)
+    public function setParameter(string $key, mixed $value): static
     {
         return $this->traitSetParameter($key, $value);
     }
@@ -91,35 +101,15 @@ abstract class AbstractProvider implements ProviderInterface
     /**
      * Create and initialize a request object
      *
-     * @param string $class The request class name
-     * @param array $parameters
-     * @return RequestInterface|AbstractRequest
+     * @param string $class      The request class name.
+     * @param array  $parameters
+     * @return RequestInterface
      */
-    protected function createRequest($class, array $parameters)
+    protected function createRequest(string $class, array $parameters): RequestInterface
     {
         /** @var RequestInterface $obj */
-        $obj = new $class($this->httpClient, $this->httpRequest);
+        $obj = new $class($this->httpClient, $this->requestFactory, $this->cache);
 
         return $obj->initialize(array_replace($this->getParameters(), $parameters));
-    }
-
-    /**
-     * Get the global default HTTP client.
-     *
-     * @return ClientInterface
-     */
-    protected function getDefaultHttpClient()
-    {
-        return new \GuzzleHttp\Client();
-    }
-
-    /**
-     * Get the global default HTTP request.
-     *
-     * @return \Symfony\Component\HttpFoundation\Request
-     */
-    protected function getDefaultHttpRequest()
-    {
-        return HttpRequest::createFromGlobals();
     }
 }

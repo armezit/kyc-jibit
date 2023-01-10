@@ -3,10 +3,13 @@
 namespace Armezit\Kyc\Jibit\Message;
 
 use Armezit\Kyc\Jibit\Common\AbstractRequest;
+use Armezit\Kyc\Jibit\Exception\InvalidRequestException;
 
+/**
+ * MatchNationalCodeWithMobileNumberRequest
+ */
 class MatchNationalCodeWithMobileNumberRequest extends AbstractRequest
 {
-
     /**
      * @return string
      */
@@ -19,7 +22,7 @@ class MatchNationalCodeWithMobileNumberRequest extends AbstractRequest
      * Get the raw data array for this message.
      *
      * @return array
-     * @throws \Armezit\Kyc\Jibit\Exception\InvalidRequestException
+     * @throws InvalidRequestException
      */
     public function getData(): array
     {
@@ -67,5 +70,4 @@ class MatchNationalCodeWithMobileNumberRequest extends AbstractRequest
     {
         return $this->setParameter('nationalCode', $nationalCode);
     }
-
 }

@@ -11,14 +11,19 @@ use Armezit\Kyc\Jibit\Common\AbstractProvider;
 use Armezit\Kyc\Jibit\Common\RequestInterface;
 use Armezit\Kyc\Jibit\Message\MatchCardNumberWithNationalCodeRequest;
 use Armezit\Kyc\Jibit\Message\MatchNationalCodeWithMobileNumberRequest;
-use Armezit\Kyc\Jibit\Message\MatchNationalCodeWithMobileNumberResponse;
-use Nette\NotImplementedException;
 
 /**
- * Class Gateway
+ * Class Provider
  */
 class Provider extends AbstractProvider
 {
+    /**
+     * @return string
+     */
+    public function getName(): string
+    {
+        return 'jibit';
+    }
 
     /**
      * @return array
@@ -34,19 +39,17 @@ class Provider extends AbstractProvider
     }
 
     /**
-     * @inheritDoc
+     * @param array $parameters
+     * @return $this
      */
-    public function initialize(array $parameters = [])
+    public function initialize(array $parameters = []): static
     {
         parent::initialize($parameters);
-
-        $this->setParameter('cache', new Cache('Jibit'));
-
         return $this;
     }
 
     /**
-     * @return string
+     * @return string|null
      */
     public function getApiKey(): ?string
     {
@@ -54,7 +57,7 @@ class Provider extends AbstractProvider
     }
 
     /**
-     * @return string
+     * @return string|null
      */
     public function getSecretKey(): ?string
     {
@@ -96,5 +99,4 @@ class Provider extends AbstractProvider
     {
         return $this->createRequest(MatchCardNumberWithNationalCodeRequest::class, $options);
     }
-
 }

@@ -1,19 +1,19 @@
 <?php
-/**
- * Abstract Request
- */
 
 namespace Armezit\Kyc\Jibit\Common;
 
-use Armezit\Kyc\Jibit\Cache;
 use Armezit\Kyc\Jibit\Exception\InvalidResponseException;
 use Armezit\Kyc\Jibit\Exception\RuntimeException;
 use Exception;
+use Http\Message\RequestFactory;
+use Psr\Cache\CacheItemPoolInterface;
+use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
-use Psr\Http\Message\RequestInterface as PsrRequestInterface;
 use Symfony\Component\HttpFoundation\ParameterBag;
-use GuzzleHttp\Psr7\Request;
 
+/**
+ * AbstractRequest
+ */
 abstract class AbstractRequest implements RequestInterface
 {
     use ParametersTrait {
@@ -25,28 +25,14 @@ abstract class AbstractRequest implements RequestInterface
      *
      * @var string URL
      */
-    protected $endpoint = 'https://napi.jibit.ir/ide';
-
-    /**
-     * The request client.
-     *
-     * @var ClientInterface
-     */
-    protected $httpClient;
-
-    /**
-     * The HTTP request object.
-     *
-     * @var PsrRequestInterface
-     */
-    protected $httpRequest;
+    protected string $endpoint = 'https://napi.jibit.ir/ide';
 
     /**
      * An associated ResponseInterface.
      *
-     * @var ResponseInterface
+     * @var ResponseInterface|null
      */
-    protected $response;
+    protected ?ResponseInterface $response = null;
 
     /**
      * @return string
@@ -63,18 +49,20 @@ abstract class AbstractRequest implements RequestInterface
      * @param array $data
      * @return AbstractResponse
      */
-    abstract protected function createResponse(array $data);
+    abstract protected function createResponse(array $data): AbstractResponse;
 
     /**
      * Create a new Request
      *
-     * @param ClientInterface $httpClient  A (psr-18 compatible) HTTP client to make API calls with
-     * @param PsrRequestInterface $httpRequest A (psr-7 compatible) HTTP request object
+     * @param ClientInterface        $httpClient     HTTP client to make API calls.
+     * @param RequestFactory         $requestFactory HTTP request factory.
+     * @param CacheItemPoolInterface $cache
      */
-    public function __construct(ClientInterface $httpClient, PsrRequestInterface $httpRequest)
-    {
-        $this->httpClient = $httpClient;
-        $this->httpRequest = $httpRequest;
+    public function __construct(
+        protected ClientInterface $httpClient,
+        protected RequestFactory $requestFactory,
+        protected CacheItemPoolInterface $cache,
+    ) {
         $this->initialize();
     }
 
@@ -83,7 +71,7 @@ abstract class AbstractRequest implements RequestInterface
      *
      * If any unknown parameters passed, they will be ignored.
      *
-     * @param array $parameters An associative array of parameters
+     * @param array $parameters An associative array of parameters.
      *
      * @return $this
      * @throws RuntimeException
@@ -94,7 +82,7 @@ abstract class AbstractRequest implements RequestInterface
             throw new RuntimeException('Request cannot be modified after it has been sent!');
         }
 
-        $this->parameters = new ParameterBag;
+        $this->parameters = new ParameterBag();
 
         Helper::initialize($this, $parameters);
 
@@ -104,12 +92,12 @@ abstract class AbstractRequest implements RequestInterface
     /**
      * Set a single parameter
      *
-     * @param string $key The parameter key
-     * @param mixed $value The value to set
+     * @param string $key   The parameter key.
+     * @param mixed  $value The value to set.
      * @return $this
-     * @throws RuntimeException if a request parameter is modified after the request has been sent.
+     * @throws RuntimeException Throws if a request parameter is modified after the request has been sent.
      */
-    protected function setParameter($key, $value): static
+    protected function setParameter(string $key, mixed $value): static
     {
         if (null !== $this->response) {
             throw new RuntimeException('Request cannot be modified after it has been sent!');
@@ -123,6 +111,7 @@ abstract class AbstractRequest implements RequestInterface
      *
      * @return ResponseInterface
      * @throws InvalidResponseException
+     * @throws ClientExceptionInterface
      */
     public function send(): ResponseInterface
     {
@@ -135,6 +124,7 @@ abstract class AbstractRequest implements RequestInterface
      * Get the associated Response.
      *
      * @return ResponseInterface
+     * @throws RuntimeException
      */
     public function getResponse(): ResponseInterface
     {
@@ -175,23 +165,6 @@ abstract class AbstractRequest implements RequestInterface
     public function getRefreshToken(): string
     {
         return $this->getParameter('refreshToken');
-    }
-
-    /**
-     * @return Cache
-     */
-    public function getCache(): Cache
-    {
-        return $this->getParameter('cache');
-    }
-
-    /**
-     * @param Cache $cache
-     * @return static
-     */
-    public function setCache(Cache $cache): static
-    {
-        return $this->setParameter('cache', $cache);
     }
 
     /**
@@ -239,22 +212,21 @@ abstract class AbstractRequest implements RequestInterface
     }
 
     /**
-     * @param bool $isForce
+     * @param boolean $isForce
      * @return string
      * @throws InvalidResponseException
+     * @throws ClientExceptionInterface
      */
     private function generateToken(bool $isForce = false): string
     {
-        $cache = $this->getCache();
-
-        $cache->eraseExpired();
-
-        if ($isForce === false && $cache->isCached('accessToken')) {
-            $this->setAccessToken($cache->retrieve('accessToken'));
+        $accessToken = $this->cache->getItem('accessToken');
+        if ($isForce === false && $accessToken->isHit()) {
+            $this->setAccessToken($accessToken->get());
             return 'ok';
         }
 
-        if ($cache->isCached('refreshToken')) {
+        $refreshToken = $this->cache->getItem('refreshToken');
+        if ($refreshToken->isHit()) {
             $refreshToken = $this->refreshTokens();
             if ($refreshToken !== 'ok') {
                 return $this->generateNewToken();
@@ -265,41 +237,65 @@ abstract class AbstractRequest implements RequestInterface
     }
 
     /**
+     * @param string $accessToken
+     * @param string $refreshToken
+     * @return $this
+     * @throws \Psr\Cache\InvalidArgumentException
+     */
+    private function storeTokens(string $accessToken, string $refreshToken): static
+    {
+        $item = $this->cache
+            ->getItem('accessToken')
+            ->set($accessToken)
+            ->expiresAfter(24 * 60 * 60 - 60);
+        $this->cache->saveDeferred($item);
+
+        $item = $this->cache
+            ->getItem('refreshToken')
+            ->set($refreshToken)
+            ->expiresAfter(48 * 60 * 60 - 60);
+        $this->cache->saveDeferred($item);
+
+        $this->setAccessToken($accessToken);
+        $this->setRefreshToken($refreshToken);
+
+        return $this;
+    }
+
+    /**
      * Refresh access token
      *
      * @return string
+     * @throws RuntimeException
      * @throws InvalidResponseException
      */
     private function refreshTokens(): string
     {
-        $cache = $this->getCache();
-
         try {
-            $this->httpRequest = new Request(
+            $request = $this->requestFactory->createRequest(
                 'POST',
                 $this->getEndpoint() . '/v1/tokens/refresh',
                 [
-                    'json' => [
-                        'accessToken' => str_replace('Bearer ', '', $cache->retrieve('accessToken')),
-                        'refreshToken' => $cache->retrieve('refreshToken'),
-                    ],
+                    'Accept' => 'application/json',
+                    'Content-type' => 'application/json',
                 ],
+                json_encode([
+                    'accessToken' => str_replace('Bearer ', '', $this->cache->getItem('accessToken')->get()),
+                    'refreshToken' => $this->cache->getItem('refreshToken')->get(),
+                ], JSON_THROW_ON_ERROR)
             );
+            $httpResponse = $this->httpClient->sendRequest($request);
 
-            $httpResponse = $this->httpClient->sendRequest($this->httpRequest);
             $json = $httpResponse->getBody()->getContents();
             $result = !empty($json) ? json_decode($json, true) : [];
 
             if (empty($result['accessToken'])) {
-                throw new \RuntimeException('Err in refresh token.');
+                throw new RuntimeException('Err in refresh token.');
             }
 
-            $cache->store('accessToken', 'Bearer ' . $result['accessToken'], 24 * 60 * 60 - 60);
-            $cache->store('refreshToken', $result['refreshToken'], 48 * 60 * 60 - 60);
-            $this->setAccessToken('Bearer ' . $result['accessToken']);
-            $this->setRefreshToken($result['refreshToken']);
-            return 'ok';
+            $this->storeTokens($result['accessToken'], $result['refreshToken']);
 
+            return 'ok';
         } catch (Exception $e) {
             throw new InvalidResponseException(
                 'Error communicating with provider: ' . $e->getMessage(),
@@ -312,36 +308,36 @@ abstract class AbstractRequest implements RequestInterface
      * generate new access token
      *
      * @return string
+     * @throws RuntimeException
      * @throws InvalidResponseException
      */
     private function generateNewToken(): string
     {
         try {
-            $this->httpRequest = new Request(
+            $request = $this->requestFactory->createRequest(
                 'POST',
                 $this->getEndpoint() . '/v1/tokens/generate',
                 [
-                    'json' => [
-                        'apiKey' => $this->getParameter('apiKey'),
-                        'secretKey' => $this->getParameter('secretKey'),
-                    ],
+                    'Accept' => 'application/json',
+                    'Content-type' => 'application/json',
                 ],
+                json_encode([
+                    'apiKey' => $this->getParameter('apiKey'),
+                    'secretKey' => $this->getParameter('secretKey'),
+                ], JSON_THROW_ON_ERROR)
             );
-            $httpResponse = $this->httpClient->sendRequest($this->httpRequest);
+            $httpResponse = $this->httpClient->sendRequest($request);
+
             $json = $httpResponse->getBody()->getContents();
             $result = !empty($json) ? json_decode($json, true) : [];
 
             if (empty($result['accessToken'])) {
-                throw new \RuntimeException('Err in generate new token.');
+                throw new RuntimeException('Err in generate new token.');
             }
 
-            $cache = $this->getCache();
-            $cache->store('accessToken', 'Bearer ' . $result['accessToken'], 24 * 60 * 60 - 60);
-            $cache->store('refreshToken', $result['refreshToken'], 48 * 60 * 60 - 60);
-            $this->setAccessToken('Bearer ' . $result['accessToken']);
-            $this->setRefreshToken($result['refreshToken']);
-            return 'ok';
+            $this->storeTokens($result['accessToken'], $result['refreshToken']);
 
+            return 'ok';
         } catch (Exception $e) {
             throw new InvalidResponseException(
                 'Error communicating with provider: ' . $e->getMessage(),
@@ -357,49 +353,41 @@ abstract class AbstractRequest implements RequestInterface
      * @return ResponseInterface
      * @throws InvalidResponseException
      */
-    public function sendData($data): ResponseInterface
+    public function sendData(mixed $data): ResponseInterface
     {
         $this->generateToken();
-        $accessToken = $this->getAccessToken();
-
-        $requestOptions = [
-            'headers' => [
-                'Accept' => 'application/json',
-                'Content-type' => 'application/json',
-                'Authorization' => $accessToken,
-            ]
-        ];
-
-        if ($this->getHttpMethod() === 'GET') {
-            $requestOptions['query'] = $data;
-        } else {
-            $requestOptions['json'] = $data;
-        }
 
         try {
-            $this->httpRequest = new Request(
+            $request = $this->requestFactory->createRequest(
                 $this->getHttpMethod(),
                 $this->createUri($this->getEndpoint()),
-                $requestOptions,
+                [
+                    'Accept' => 'application/json',
+                    'Content-type' => 'application/json',
+                    'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                ],
+                json_encode($data, JSON_THROW_ON_ERROR)
             );
+            $httpResponse = $this->httpClient->sendRequest($request);
 
-            $httpResponse = $this->httpClient->sendRequest($this->httpRequest);
             $json = $httpResponse->getBody()->getContents();
             $result = !empty($json) ? json_decode($json, true) : [];
+
             $result['httpStatus'] = $httpResponse->getStatusCode();
 
-            if (isset($result['errors']) && $result['errors'][0]['code'] === 'security.auth_required') {
-                $this->generateToken(true);
-                $retries = !isset($data['retries']) ? 0 : (int)$data['retries'];
-                if ($retries <= 0) {
-                    $data['retries'] = 1;
-                    return $this->sendData($data);
+            if (isset($result['errors'])) {
+                if ($result['errors'][0]['code'] === 'security.auth_required') {
+                    $this->generateToken(true);
+                    $retries = !isset($data['retries']) ? 0 : (int)$data['retries'];
+                    if ($retries <= 0) {
+                        $data['retries'] = 1;
+                        return $this->sendData($data);
+                    }
+                    $result['httpStatus'] = 401;
                 }
-                $result['httpStatus'] = 401;
             }
 
             return $this->response = $this->createResponse($result);
-
         } catch (Exception $e) {
             throw new InvalidResponseException(
                 'Error communicating with provider: ' . $e->getMessage(),
@@ -407,5 +395,4 @@ abstract class AbstractRequest implements RequestInterface
             );
         }
     }
-
 }

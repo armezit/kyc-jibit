@@ -4,9 +4,11 @@ namespace Armezit\Kyc\Jibit\Message;
 
 use Armezit\Kyc\Jibit\Common\AbstractResponse;
 
+/**
+ * MatchCardNumberWithNationalCodeResponse
+ */
 class MatchCardNumberWithNationalCodeResponse extends AbstractResponse
 {
-
     /**
      * @return bool
      */
@@ -14,5 +16,4 @@ class MatchCardNumberWithNationalCodeResponse extends AbstractResponse
     {
         return filter_var($this->data['matched'], FILTER_VALIDATE_BOOL);
     }
-
 }

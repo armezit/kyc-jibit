@@ -4,6 +4,11 @@ namespace Armezit\Kyc\Jibit\Common;
 
 interface ProviderInterface
 {
+    /**
+     * Get provider name
+     * @return string
+     */
+    public function getName(): string;
 
     /**
      * Define default provider parameters as an associative array
@@ -14,6 +19,7 @@ interface ProviderInterface
 
     /**
      * Initialize provider with parameters
+     * @param array $parameters
      * @return $this
      */
     public function initialize(array $parameters = array());

@@ -14,7 +14,7 @@
          stopOnFailure="false"
          failOnWarning="true">
     <testsuites>
-        <testsuite name="Kyc Jibit">
+        <testsuite name="KYC Jibit">
             <directory suffix=".php">./tests/</directory>
         </testsuite>
     </testsuites>
