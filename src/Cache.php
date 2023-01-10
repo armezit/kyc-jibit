@@ -92,10 +92,10 @@ class Cache
     {
         if (true === file_exists($this->getCacheDir())) {
             $content = file_get_contents($this->getCacheDir());
-            if (!is_string($$content)) {
+            if (!is_string($content)) {
                 return false;
             }
-            return json_decode($$content, true);
+            return json_decode($content, true);
         } else {
             return false;
         }
